@@ -1,4 +1,7 @@
 # eBPF-Learning
+
+[eBPF - Introduction, Tutorials & Community Resources](https://ebpf.io/zh-hans/)
+
 [eBPF - Introduction, Tutorials & Community Resources](https://ebpf.io/)
 
 [libbpf/libbpf: Automated upstream mirror for libbpf stand-alone build.](https://github.com/libbpf/libbpf)
