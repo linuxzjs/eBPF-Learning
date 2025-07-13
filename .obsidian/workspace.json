@@ -4,21 +4,21 @@
     "type": "split",
     "children": [
       {
-        "id": "fbb8b05245bf60f5",
+        "id": "3f98a431e3c9d732",
         "type": "tabs",
         "children": [
           {
-            "id": "d363cb2bcfef4f92",
+            "id": "87a643a3d7ecd8de",
             "type": "leaf",
             "state": {
               "type": "markdown",
               "state": {
-                "file": "docs/Linux eBPF.md",
+                "file": "docs/Linux BCC.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "Linux eBPF"
+              "title": "Linux BCC"
             }
           }
         ]
@@ -95,7 +95,7 @@
               "type": "backlink",
               "state": {
                 "file": "docs/Linux eBPF.md",
-                "collapseAll": false,
+                "collapseAll": true,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
                 "showSearch": false,
@@ -142,24 +142,25 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "docs/Linux eBPF.md",
+                "file": "docs/Linux BCC.md",
                 "followCursor": false,
                 "showSearch": false,
                 "searchQuery": ""
               },
               "icon": "lucide-list",
-              "title": "Linux eBPF 的大纲"
+              "title": "Linux BCC 的大纲"
             }
           }
-        ]
+        ],
+        "currentTab": 3
       }
     ],
     "direction": "horizontal",
-    "width": 300,
-    "collapsed": true
+    "width": 300
   },
   "left-ribbon": {
     "hiddenItems": {
+      "obsidian-excalidraw-plugin:新建绘图文件": false,
       "switcher:打开快速切换": false,
       "graph:查看关系图谱": false,
       "canvas:新建白板": false,
@@ -168,9 +169,14 @@
       "command-palette:打开命令面板": false
     }
   },
-  "active": "d363cb2bcfef4f92",
+  "active": "87a643a3d7ecd8de",
   "lastOpenFiles": [
-    "README.md",
-    "docs/Linux eBPF.md"
+    "Excalidraw/BCC.excalidraw.md",
+    "docs/Linux BCC.md",
+    "docs/Linux eBPF.md",
+    "docs/Linux bpftrace.md",
+    "Excalidraw/Drawing 2025-06-10 03.54.48.excalidraw.md",
+    "Excalidraw",
+    "README.md"
   ]
 }
