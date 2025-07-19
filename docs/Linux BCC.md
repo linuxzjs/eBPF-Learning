@@ -196,6 +196,8 @@ stress-ng      52828      0.29    50
 ```
 # 四、`Reference`
 
+[[Linux eBPF]]
+
 [IO Visor Project](https://github.com/iovisor)
 
 [iovisor/bcc: BCC - Tools for BPF-based Linux IO analysis, networking, monitoring, and more](https://github.com/iovisor/bcc)
