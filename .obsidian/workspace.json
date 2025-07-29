@@ -13,12 +13,25 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "docs/Linux BCC.md",
+                "file": "docs/Linux eBPF.md",
                 "mode": "source",
-                "source": false
+                "source": false,
+                "backlinks": false
               },
               "icon": "lucide-file",
-              "title": "Linux BCC"
+              "title": "Linux eBPF"
+            }
+          },
+          {
+            "id": "3b1dbe4934495dbe",
+            "type": "leaf",
+            "state": {
+              "type": "excalidraw",
+              "state": {
+                "file": "Excalidraw/eBPF.excalidraw.md"
+              },
+              "icon": "excalidraw-icon",
+              "title": "eBPF.excalidraw"
             }
           }
         ]
@@ -94,9 +107,9 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "docs/Linux BCC.md",
-                "collapseAll": true,
-                "extraContext": false,
+                "file": "docs/Linux eBPF.md",
+                "collapseAll": false,
+                "extraContext": true,
                 "sortOrder": "alphabetical",
                 "showSearch": false,
                 "searchQuery": "",
@@ -104,7 +117,7 @@
                 "unlinkedCollapsed": true
               },
               "icon": "links-coming-in",
-              "title": "Linux BCC 的反向链接列表"
+              "title": "Linux eBPF 的反向链接列表"
             }
           },
           {
@@ -113,12 +126,12 @@
             "state": {
               "type": "outgoing-link",
               "state": {
-                "file": "docs/Linux BCC.md",
+                "file": "docs/Linux eBPF.md",
                 "linksCollapsed": false,
                 "unlinkedCollapsed": true
               },
               "icon": "links-going-out",
-              "title": "Linux BCC 的出链列表"
+              "title": "Linux eBPF 的出链列表"
             }
           },
           {
@@ -128,7 +141,7 @@
               "type": "tag",
               "state": {
                 "sortOrder": "alphabeticalReverse",
-                "useHierarchy": true,
+                "useHierarchy": false,
                 "showSearch": false,
                 "searchQuery": ""
               },
@@ -142,13 +155,13 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "docs/Linux BCC.md",
+                "file": "docs/Linux eBPF.md",
                 "followCursor": true,
                 "showSearch": true,
                 "searchQuery": ""
               },
               "icon": "lucide-list",
-              "title": "Linux BCC 的大纲"
+              "title": "Linux eBPF 的大纲"
             }
           }
         ],
@@ -156,35 +169,40 @@
       }
     ],
     "direction": "horizontal",
-    "width": 300
+    "width": 228.5
   },
   "left-ribbon": {
     "hiddenItems": {
+      "obsidian-excalidraw-plugin:新建绘图文件": false,
       "switcher:打开快速切换": false,
       "graph:查看关系图谱": false,
       "canvas:新建白板": false,
       "daily-notes:打开/创建今天的日记": false,
       "templates:插入模板": false,
-      "command-palette:打开命令面板": false,
-      "obsidian-excalidraw-plugin:新建绘图文件": false
+      "command-palette:打开命令面板": false
     }
   },
   "active": "2e7628eda931d43f",
   "lastOpenFiles": [
-    "tests/direct_reclaim.py",
+    "Excalidraw/eBPF.excalidraw.md",
+    "docs/Linux eBPF.md",
+    "docs/2409.11220v1.pdf",
+    "docs/Linux BCC.md",
+    "Excalidraw/BCC.excalidraw.md",
+    "docs/Linux eBPF~.md",
+    "Markdown/image-20250725052729225.png",
     "docs/Linux BCC Development Reference Guide.md",
     "docs/Linux bpftrace.md",
     "docs/Linux bpftrace Development Reference Guide.md",
-    "docs/Linux BCC.md",
-    "docs/Linux eBPF.md",
+    "README.md",
+    "docs/Linux BCC Development Reference Guide~.md",
+    "tests/direct_reclaim.py",
     "docs/Linux BCC~.md",
     "images/Pasted image 20250714195927.png",
     "images/Pasted image 20250714195303.png",
     "images",
     "docs/assets/image-20250714194049752.png",
     "docs/assets",
-    "README.md",
-    "Excalidraw/BCC.excalidraw.md",
     "Excalidraw/Drawing 2025-06-10 03.54.48.excalidraw.md",
     "Excalidraw"
   ]
