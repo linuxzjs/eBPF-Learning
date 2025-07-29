@@ -13,6 +13,8 @@ bpf_text = """
 struct val_t {
     u32 pid;
     u64 ts; // start time
+    int order;
+    u32 gfp_flags;
     char name[TASK_COMM_LEN];
 };
 
@@ -21,6 +23,8 @@ struct data_t {
     u64 nr_reclaimed;
     u64 delta;
     u64 ts;    // end time
+    int order;
+    u32 gfp_flags;
     char name[TASK_COMM_LEN];
 };
 
@@ -34,6 +38,8 @@ TRACEPOINT_PROBE(vmscan, mm_vmscan_direct_reclaim_begin) {
     if (bpf_get_current_comm(&val.name, sizeof(val.name)) == 0) {
         val.pid = pid;
         val.ts = bpf_ktime_get_ns();
+        val.order = args->order;
+        val.gfp_flags = args->gfp_flags;
         start.update(&pid, &val);
     }
     
@@ -55,6 +61,8 @@ TRACEPOINT_PROBE(vmscan, mm_vmscan_direct_reclaim_end) {
     data.delta = ts - valp->ts;
     data.ts = ts / 1000;
     data.pid = valp->pid;
+    data.order = valp->order;
+    data.gfp_flags = valp->gfp_flags;
     bpf_probe_read_kernel(&data.name, sizeof(data.name), valp->name);
     data.nr_reclaimed = args->nr_reclaimed;
 
@@ -69,18 +77,18 @@ TRACEPOINT_PROBE(vmscan, mm_vmscan_direct_reclaim_end) {
 b = BPF(text=bpf_text)
 
 # header
-print("%-14s %-6s %8s %5s" %
-      ("COMM", "PID", "LAT(ms)", "PAGES"), end="")
+print("%-14s %-6s %8s %5s %5s %5s" %
+      ("COMM", "PID", "LAT(ms)", "PAGES","ORDER", "GFP"), end="")
 print("")
 
 # process event
 def print_event(cpu, data, size):
     event = b["events"].event(data)
 
-    print("%-14.14s %-6s %8.2f %5d" %
+    print("%-14.14s %-6s %8.2f %5d %5d   0x%X" %
           (event.name.decode('utf-8', 'replace'),
            event.pid,
-           float(event.delta) / 1000000, event.nr_reclaimed), end="")
+           float(event.delta) / 1000000, event.nr_reclaimed, event.order, event.gfp_flags), end="")
     print("")
     sys.stdout.flush()
 
@@ -92,4 +100,3 @@ while 1:
         b.perf_buffer_poll()
     except KeyboardInterrupt:
         exit()
-
