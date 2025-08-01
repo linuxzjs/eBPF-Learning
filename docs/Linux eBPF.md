@@ -10,7 +10,7 @@
 
 # 二、`Theory`
 
-`eBPF`与传统的`kernel modules`机制是存在相似性，采用`kprobe、tracepoint`技术完成事件的追踪;但二者再设计原理上存在本质的差异，`eBPF`在不介入用户业务的情况下作为上帝视角监控整个系统，以沙盒程序的形式监控整个系统发生的各种事件。
+`eBPF`与传统的`kernel modules`机制是存在相似性，但二者再设计原理上存在本质的差异，`eBPF`在不介入用户业务的情况下作为上帝视角监控整个系统，以沙盒程序的形式监控整个系统发生的各种事件。
 
 ![image-20250722035236205](../Markdown/image-20250722035236205.png)
 
@@ -51,7 +51,7 @@
 
 ## `Verifier`
 
-`eBPF`程序被`clang`转换为`eBPF`字节码后，通过`bpf_load_program`将`eBPF`字节码从用户态拷贝到内核态，再通过`JIT`转化之前需要通过`Verifier`验证器进行检查,确保`eBPF`程序不会引入问题而导致系统异常，是一种提前检查机制保证了`eBPF` 程序运行的稳定性。
+`eBPF`程序被`clang`转换为`eBPF`字节码后，通过`bpf_load_program`将`eBPF`字节码从用户态拷贝到内核态，再通过`JIT`转化之前需要通过`Verifier`验证器进行检查,确保`eBPF`程序不会引入问题而导致系统异常，是一种提前检查机制保证了`eBPF` 程序运行的稳定性。验证器设计参考：`kernel/bpf/verifier.c`代码。
 
 ![image-20250725053813793](../Markdown/image-20250725053813793.png)
 
@@ -72,12 +72,74 @@
 ## `Run`
 
 `eBPF`应用过程中需要确认`BPF`支持项`man bpf`以确保程序能够正常运行常规情况下可以通过`bpf helpers`详细确认该版本内核支持的事件，更好的完成开发。
-
 # 三、`Source code`
 
 `BPF`源码存放路径`linux/kernel/bpf`, 通过分析源码了解 `eBPF`底层实现机制,加深对`BPF`基础的理解。
 
+`eBPF`本质是一个基于`RISC`寄存器的虚拟机，使用自定义的`64 bit RISC`指令集，能够在`Linux`内核内运行即时本地编译的 "BPF 程序"，并能访问内核功能和内存的一个子集。`eBPF`共有`r0 ~ r10`11个64位寄存器,一个程序计数器和一个`512`字节固定大小的堆栈。九个寄存器是通用读写的，一个是只读堆栈指针，程序计数器是隐式的，即我们只能跳转到计数器的某个偏移量。
 
+```c
+/* Register numbers */
+enum {
+	BPF_REG_0 = 0,
+	BPF_REG_1,
+	BPF_REG_2,
+	BPF_REG_3,
+	BPF_REG_4,
+	BPF_REG_5,
+	BPF_REG_6,
+	BPF_REG_7,
+	BPF_REG_8,
+	BPF_REG_9,
+	BPF_REG_10,
+	__MAX_BPF_REG,
+};
+
+/* BPF has 10 general purpose 64-bit registers and stack frame. */
+#define MAX_BPF_REG	__MAX_BPF_REG
+
+struct bpf_insn {
+	__u8	code;		/* opcode */
+	__u8	dst_reg:4;	/* dest register */
+	__u8	src_reg:4;	/* source register */
+	__s16	off;		/* signed offset */
+	__s32	imm;		/* signed immediate constant */
+};
+
+msb                                                        lsb
++------------------------+----------------+----+----+--------+
+|immediate               |offset          |src |dst |opcode  |
++------------------------+----------------+----+----+--------+
+```
+
+寄存器`r10`是唯一只读的寄存器，其中包含帧指针地址，以便访问`BPF`堆栈空间。剩余的`r0`-`r9`寄存器是通用的，具有读/写性质。`BPF`程序可以调用预定义的帮助函数，该函数由核心内核定义（从不由模块定义）。`BPF`调用惯例定义如下：
+- `r0`包含帮助函数调用的返回值。
+- `r1`- `r5`持有从`BPF`程序到内核帮助函数的参数。
+- `r6`- `r9`是被调用者保存的寄存器，将在帮助函数调用时保留。
+
+在程序加载时提供的`eBPF` [程序类型](https://github.com/torvalds/linux/blob/v6.16/include/uapi/linux/bpf.h)准确地决定了哪些内核函数子集可以调用，以及在程序启动时通过 `r1`提供的 "上下文"参数。`r0` 中存储的程序退出值的含义也是由程序类型决定的。
+每个函数调用在寄存器 `r1 - r5 `中最多可以有`5`个参数；这适用于 `eBPF `到` eBPF` 和内核函数的调用。寄存器`r1 - r5`只能存储数字或指向堆栈的指针（作为参数传递给函数），从不直接指向任意内存的指针。所有内存访问都必须先将数据加载到 `eBPF`堆栈中，然后才能在 `eBPF` 程序中使用它。此限制有助于 `eBPF `验证器，它简化了内存模型以实现更轻松的正确性检查。类似的函数定义如下：
+```c
+u64 fn(u64 r1, u64 r2, u64 r3, u64 r4, u64 r5)
+```
+
+在实际应用中
+
+```c
+/* Instruction classes */
+#define BPF_CLASS(code) ((code) & 0x07)
+#define		BPF_LD		0x00
+#define		BPF_LDX		0x01
+#define		BPF_ST		0x02
+#define		BPF_STX		0x03
+#define		BPF_ALU		0x04
+#define		BPF_JMP		0x05
+#define		BPF_RET		0x06
+#define		BPF_MISC    0x07
+```
+
+
+[bcc/docs/kernel-versions.md at master · iovisor/bcc](https://github.com/iovisor/bcc/blob/master/docs/kernel-versions.md)
 
 # 四、`Verifier`
 
@@ -109,7 +171,8 @@ bpftool btf dump file /sys/kernel/btf/vmlinux format c > vmlinux.h
 `vmlinux.h`头文件可以包含在`eBPF`程序中，以促进其开发，并确保与内核数据结构的兼容性。使整个开发调试过程更轻松便捷。
 ## `Frist eBPF Demo`
 
-基于`Python` 语言进行开发,故此需要完成两个文件代码开发工作：`eBPF`驱动程序开发、`eBPF`加载程序开发。
+正常情况下需要开发`eBPF`驱动程序、`eBPF`加载程序;此处为简化开发过程基于`BCC`框架通过`Python`语言进行开发实现。`BCC`基础组成框架如下图：
+![image-20250801050037111](../Markdown/image-20250801050037111.png)
 
 **<font color='red'>期望目标：当进程内存申请进入`direct reclaim`路径时,输出当前进程信息:`Name、Pid、Order、Nr_reclaimed、GFP`。</font>**
 
@@ -219,9 +282,12 @@ while 1:
 **`Output` 输出：** 通过`stress-ng`为系统创造内存压力,使系统进入低内存状态而进入`direct reclaim`流程。
 
 ```shell
-$ sudo python3 direct_reclaim.py 
-stress-ng      1863       1.29    64     0   0x140DCA
-stress-ng      1859       0.32    64     0   0x140DCA
+# python3 direct_reclaim.py
+COMM           PID     LAT(ms) PAGES ORDER   GFP
+stress-ng      2510       0.16    40     0   0x140DCA
+stress-ng      2510       0.10    64     0   0x140DCA
+stress-ng      2514       0.20    82     0   0x140DCA
+stress-ng      2514       0.06    64     0   0x140DCA
 ...
 ```
 
@@ -237,11 +303,6 @@ root@jinsheng:/sys/kernel/tracing# cat trace_pipe | grep direct_reclaim
 ```
 
 在`6.8.0-64-generic`环境中通过`ftrace、direct_reclaim.py`获取的`order、gfp_flags`数据是一致的说明自定义`BPF`工具没有问题。
-
-## `eBPF & Perfetto`
-
-众所周知[Perfetto UI](https://ui.perfetto.dev/)在`Android`系统中发挥至关重要的作用。常用于系统及应用性能分析过程中,熟练使用`Perfetto`对于性能相关问题的分析定位能够事半功倍。如何能将`eBPF`技术与`Perfetto`结合,将更加有效的拓展`Perfetto`技术边界辅助性能分析开发。
-
 
 # 五、`Reference`
 
