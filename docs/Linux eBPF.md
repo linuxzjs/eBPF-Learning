@@ -78,6 +78,8 @@
 
 `eBPF`本质是一个基于`RISC`寄存器的虚拟机，使用自定义的`64 bit RISC`指令集，能够在`Linux`内核内运行即时本地编译的 "BPF 程序"，并能访问内核功能和内存的一个子集。`eBPF`共有`r0 ~ r10`11个64位寄存器,一个程序计数器和一个`512`字节固定大小的堆栈。九个寄存器是通用读写的，一个是只读堆栈指针，程序计数器是隐式的，即我们只能跳转到计数器的某个偏移量。
 
+![image-20250801151036480](../Markdown/image-20250801151036480.png)
+
 ```c
 /* Register numbers */
 enum {
@@ -97,19 +99,6 @@ enum {
 
 /* BPF has 10 general purpose 64-bit registers and stack frame. */
 #define MAX_BPF_REG	__MAX_BPF_REG
-
-struct bpf_insn {
-	__u8	code;		/* opcode */
-	__u8	dst_reg:4;	/* dest register */
-	__u8	src_reg:4;	/* source register */
-	__s16	off;		/* signed offset */
-	__s32	imm;		/* signed immediate constant */
-};
-
-msb                                                        lsb
-+------------------------+----------------+----+----+--------+
-|immediate               |offset          |src |dst |opcode  |
-+------------------------+----------------+----+----+--------+
 ```
 
 寄存器`r10`是唯一只读的寄存器，其中包含帧指针地址，以便访问`BPF`堆栈空间。剩余的`r0`-`r9`寄存器是通用的，具有读/写性质。`BPF`程序可以调用预定义的帮助函数，该函数由核心内核定义（从不由模块定义）。`BPF`调用惯例定义如下：
@@ -119,11 +108,24 @@ msb                                                        lsb
 
 在程序加载时提供的`eBPF` [程序类型](https://github.com/torvalds/linux/blob/v6.16/include/uapi/linux/bpf.h)准确地决定了哪些内核函数子集可以调用，以及在程序启动时通过 `r1`提供的 "上下文"参数。`r0` 中存储的程序退出值的含义也是由程序类型决定的。
 每个函数调用在寄存器 `r1 - r5 `中最多可以有`5`个参数；这适用于 `eBPF `到` eBPF` 和内核函数的调用。寄存器`r1 - r5`只能存储数字或指向堆栈的指针（作为参数传递给函数），从不直接指向任意内存的指针。所有内存访问都必须先将数据加载到 `eBPF`堆栈中，然后才能在 `eBPF` 程序中使用它。此限制有助于 `eBPF `验证器，它简化了内存模型以实现更轻松的正确性检查。类似的函数定义如下：
+
 ```c
 u64 fn(u64 r1, u64 r2, u64 r3, u64 r4, u64 r5)
 ```
 
-在实际应用中
+`eBPF`程序运行需要将`eBPF`字节码转换为机器可以运行的指令，而`eBPF`运行指令也是64位指令结构如下图所示：
+
+```c
+struct bpf_insn {
+	__u8	code;		/* opcode */
+	__u8	dst_reg:4;	/* dest register */
+	__u8	src_reg:4;	/* source register */
+	__s16	off;		/* signed offset */
+	__s32	imm;		/* signed immediate constant */
+};
+```
+
+![image-20250801204656412](../Markdown/image-20250801204656412.png)
 
 ```c
 /* Instruction classes */
@@ -138,8 +140,104 @@ u64 fn(u64 r1, u64 r2, u64 r3, u64 r4, u64 r5)
 #define		BPF_MISC    0x07
 ```
 
+指令整体被分为`8`大类，针对每种类型的指令都有不同的描述。在`BPF`程序开发中指令通常以组合的形式进行使用，例如函数调用结构组成如下：
 
-[bcc/docs/kernel-versions.md at master · iovisor/bcc](https://github.com/iovisor/bcc/blob/master/docs/kernel-versions.md)
+```c
+/* Convert function address to BPF immediate */
+
+#define BPF_CALL_IMM(x)	((void *)(x) - (void *)__bpf_call_base)
+
+#define BPF_EMIT_CALL(FUNC)					\
+	((struct bpf_insn) {					\
+		.code  = BPF_JMP | BPF_CALL,			\
+		.dst_reg = 0,					\
+		.src_reg = 0,					\
+		.off   = 0,					\
+		.imm   = BPF_CALL_IMM(FUNC) })
+```
+
+我们以常见的`bpf_get_current_pid_tgid`函数分析该函数在应用指令是如何实现的。 需要明确：该代码随手而写，目的在于理解`BPF` 函数调用指令，代码可能无法执行。
+
+```c
+#include <linux/bpf.h>  // 1
+#include <bpf/bpf_helpers.h>
+
+unsigned int pid = 0;  // 2
+
+SEC("xdp")  // 3
+int hello(struct xdp_md *ctx) {  // 4
+	pid = bpf_get_current_pid_tgid();
+    bpf_printk("Hello World %d", pid);
+    return XDP_PASS;
+}
+
+char LICENSE[] SEC("license") = "Dual BSD/GPL";  // 5
+```
+
+**编译`bpf`源码后进行反汇编操作：**
+
+```shell
+$ clang -g -O2 -target bpf -I/user/include/x86_64-linux-gen -c hello.bpf.c -o hello.bpf.o
+
+$ file hello.bpf.o
+hello.bpf.o: ELF 64-bit LSB relocatable, eBPF, version 1 (SYSV), with debug_info, not stripped
+$ llvm-objdump-12 -S hello.bpf.o
+
+hello.bpf.o:	file format elf64-bpf
+
+
+Disassembly of section xdp:
+
+0000000000000000 <hello>:
+; 	pid = bpf_get_current_pid_tgid();
+       0:	85 00 00 00 0e 00 00 00	call 14
+       1:	18 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00	r1 = 0 ll
+       3:	63 01 00 00 00 00 00 00	*(u32 *)(r1 + 0) = r0
+       4:	b7 01 00 00 00 00 00 00	r1 = 0
+;     bpf_printk("Hello World %d", pid);
+       5:	73 1a fe ff 00 00 00 00	*(u8 *)(r10 - 2) = r1
+       6:	b7 01 00 00 25 64 00 00	r1 = 25637
+       7:	6b 1a fc ff 00 00 00 00	*(u16 *)(r10 - 4) = r1
+       8:	b7 01 00 00 72 6c 64 20	r1 = 543452274
+       9:	63 1a f8 ff 00 00 00 00	*(u32 *)(r10 - 8) = r1
+      10:	18 01 00 00 48 65 6c 6c 00 00 00 00 6f 20 57 6f	r1 = 8022916924116329800 ll
+      12:	7b 1a f0 ff 00 00 00 00	*(u64 *)(r10 - 16) = r1
+      13:	bf a1 00 00 00 00 00 00	r1 = r10
+      14:	07 01 00 00 f0 ff ff ff	r1 += -16
+;     bpf_printk("Hello World %d", pid);
+      15:	b7 02 00 00 0f 00 00 00	r2 = 15
+      16:	bf 03 00 00 00 00 00 00	r3 = r0
+      17:	85 00 00 00 06 00 00 00	call 6
+;     return XDP_PASS;
+      18:	b7 00 00 00 02 00 00 00	r0 = 2
+      19:	95 00 00 00 00 00 00 00	exit
+```
+
+可以看到`bpf_get_current_pid_tgid`对应的指令 **`85 00 00 00 0e 00 00 00	call 14`**
+
+```c
+#define ___BPF_FUNC_MAPPER(FN, ctx...)			\
+	FN(unspec, 0, ##ctx)				\
+	FN(map_lookup_elem, 1, ##ctx)			\
+	FN(map_update_elem, 2, ##ctx)			\
+	FN(map_delete_elem, 3, ##ctx)			\
+	FN(probe_read, 4, ##ctx)			\
+	FN(ktime_get_ns, 5, ##ctx)			\
+	FN(trace_printk, 6, ##ctx)			\
+	...
+	FN(get_current_pid_tgid, 14, ##ctx)		\
+```
+
+**`0x0e`代表：`get_current_pid_tgid`,`0x85`代表：`BPF_CALL|BPF_JMP`**。
+
+```c
+//linux/include/uapi/linux/bpf.h
+#define BPF_CALL    0x80    /* function call */
+//linux/include/uapi/bpf_common.h
+#define     BPF_JMP     0x05
+```
+
+![image-20250802173733502](../Markdown/image-20250802173733502.png)详细参考[[Linux eBPF Instructions]]。
 
 # 四、`Verifier`
 
